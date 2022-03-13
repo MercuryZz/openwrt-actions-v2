@@ -11,9 +11,9 @@ env:
   FRONT_FEEDS_SH: front_feeds.sh
   AFTER_FEEDS_SH: after_feeds.sh
   ARCH_CONFIG_FILE: arch.config
-  UPLOAD_PACKAGES: false
+  UPLOAD_PACKAGES: true
   UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: false
+  UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
   
 jobs:
