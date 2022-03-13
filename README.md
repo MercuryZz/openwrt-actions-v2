@@ -1,4 +1,4 @@
-# openwrt-actions-v2
+# 🌏⭐🌙openwrt-actions-v2🌈🌠☁
 ## 实现单线程编译openwrt源码，再通过二次编译实现固件定制
 ## 请右上角fork使用
 ### 借鉴自[P3TERX/Actions-OpenWrt](https://github.com/P3TERX/Actions-OpenWrt)
