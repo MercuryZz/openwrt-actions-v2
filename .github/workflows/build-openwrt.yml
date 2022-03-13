@@ -5,19 +5,16 @@ on:
   workflow_dispatch:
     inputs:
       ssh:
-        description: 'SSH connection to Actions'
-        required: false
-        default: 'false'
+        description: 'Twice Complie'
+        required: true
+        default: 'true'
   
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
   REPO_BRANCH: master
-  FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: .config
   FRONT_FEEDS_SH: front_feeds.sh
   AFTER_FEEDS_SH: after_feeds.sh
-  ARCH_CONFIG_FILE: arch.config
-  UPLOAD_PACKAGES: true
+  UPLOAD_BIN_DIR: true
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
@@ -51,81 +48,75 @@ jobs:
         df -hT $PWD
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-        cd openwrt
-        useVersionInfo=$(git show -s --date=short --format="Author: %an<br/>date: %cd<br/>commit: %s<br/>commit hash: %H")
-        echo "useVersionInfo=$useVersionInfo" >> $GITHUB_ENV
-        echo "DATE=$(date "+%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
         
-    - name: First update feeds
-      run: cd openwrt && ./scripts/feeds update -a
-
-    - name: First install feeds
-      run: cd openwrt && ./scripts/feeds install -a
+    - name: First update & install feeds
+      working-directory: ./openwrt
+      run: |
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
         
     - name: Load configuration modify arch only
+      env: 
+        ARCH_CONFIG_FILE: 'arch.config'
       run: |
         [ -e $ARCH_CONFIG_FILE ] && mv $ARCH_CONFIG_FILE openwrt/.config
+        cd openwrt && make defconfig
         
     - name: First download package
-      id: first_package
       run: |
-        cd openwrt
-        make defconfig
-        make download -j8
+        make download -j$(nproc)
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
     
     - name: First compile the firmware
-      id: first_compile
+      id: first_complie
+      working-directory: ./openwrt
       run: |
         cd openwrt
         echo -e "1 thread compile at first"
         make -j1 V=s
         echo "::set-output name=status::success"
-        
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
         
-    - name: Upload environment directory
-      uses: actions/upload-artifact@main
-      if: steps.compile.outputs.status == 'success' && !cancelled()
-      with:
-        name: environment_directory${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/
+        
+        
         
     - name: Clean temporary file
-      id: delete
       run: |
-        cd openwrt
-        rm -rf tmp && rm -f .config
+        cd openwrt && rm -rf tmp && rm -f .config
+        
+        
+        
     
     - name: Load custom feeds
+      env: 
+        FEEDS_CONF: 'feeds.conf.default'
       run: |
         [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
         chmod +x $FRONT_FEEDS_SH
         cd openwrt
         $GITHUB_WORKSPACE/$FRONT_FEEDS_SH
         
-    - name: Second update feeds
-      run: cd openwrt && ./scripts/feeds update -a
-
-    - name: Second install feeds
-      run: cd openwrt && ./scripts/feeds install -a
+    - name: Second update & install feeds
+      working-directory: ./openwrt
+      run: 
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
       
     - name: Load custom configuration
+      env: 
+        CONFIG_FILE: '.config'
       run: |
-        [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
         chmod +x $AFTER_FEEDS_SH
         cd openwrt
         $GITHUB_WORKSPACE/$AFTER_FEEDS_SH
+        cd openwrt && make defconfig
         
     - name: Second download package
-      id: second_package
       run: |
-        cd openwrt
-        make defconfig
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
@@ -144,42 +135,42 @@ jobs:
     - name: Check space usage
       if: (!cancelled())
       run: df -hT
+      
+    - name: Upload bin directory
+      uses: actions/upload-artifact@main
+      if: steps.second_compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      with:
+        name: openwrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: openwrt/bin
         
     - name: Organize files
-      id: second_organize
-      if: env.UPLOAD_PACKAGES == 'true' && !cancelled()
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
-        mkdir bin_packages && cd openwrt/bin/targets/*/* 
-        mv packages openwrt/bin/packages/bin_packages
+        cd openwrt/bin/targets/*/*
         rm -rf packages
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
         echo "::set-output name=status::success"
-      
-    - name: Upload packages directory
-      uses: actions/upload-artifact@main
-      if: steps.compile.outputs.status == 'success' && !cancelled() && env.UPLOAD_PACKAGES == 'true'
-      with:
-        name: openwrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/bin/packages
         
     - name: Upload firmware directory
       uses: actions/upload-artifact@main
-      if: steps.compile.outputs.status == 'success' && !cancelled() && env.UPLOAD_FIRMWARE == 'true'
+      if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: openwrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
         
-    - name: Create release
-      id: release
-      uses: ncipollo/release-action@v1
+    - name: Upload firmware to release
+      uses: svenstaro/upload-release-action@v2
+      if: env.UPLOAD_RELEASES == 'true' && !cancelled()
       with:
-        name: R${{ env.DATE }} for ${{ env.PRODUCT_NAME }}
-        allowUpdates: true
-        tag: ${{ env.FILE_NAME }}
-        commit: master
-        token: ${{ secrets.RELEASES_TOKEN }}
-        body: |
-          默认IP： 192.168.123.1 默认密码： password
-          基于LEDE
-          ${{ env.useVersionInfo }}
-        artifacts: ${{ env.FIRMWARE }}/*
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ env.FIRMWARE }}/*
+        file_glob: true
+        tag: AutoUpdate
+        overwrite: true
+        
+    - name: Delete workflow runs
+      uses: GitRML/delete-workflow-runs@main
+      with:
+        retain_days: 1
+        keep_minimum_runs: 3
