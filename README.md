@@ -1,7 +1,24 @@
 # openwrt-actions-v2
+## 实现单线程编译openwrt源码，再通过二次编译实现固件定制
+## 请右上角fork使用
+### 借鉴自[P3TERX/Actions-OpenWrt](https://github.com/P3TERX/Actions-OpenWrt)
+### Actions默认使用[coolsnowwolf/lede](https://github.com/coolsnowwolf/lede)源码编译，有其他需求可修改如下部分
+```yml
+   env:
+     REPO_URL: https://github.com/coolsnowwolf/lede
+     REPO_BRANCH: master
+```
+### 需要自己准备如下
+- arch.config --> 仅作架构修改的配置文件，知道自己机器架构的可直接按项目内文件修改
+- .config --> 用于二次编译的自定义配置文件
+- front_feeds.sh --> feeds更新下载前脚本
+- after_feeds.sh --> feeds更新下载后脚本
+- feeds.conf.default --> 用于添加自定义软件包，于二次编译中使用
 ---
-- [ ] Exercising
+- [ ] 实现可选单次编译或二次编译
+- [ ] 正在找寻免验证的临时网盘当跳板
 ---
+### 准备配置文件所需步骤的记录，其中包含整个编译过程，有条件也可直接物理机编译
 ```shell
 sudo apt-get update
 sudo apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler g++-multilib antlr3 gperf wget curl swig rsync
@@ -27,13 +44,13 @@ rm -rf tmp
 rm -f .config
 
 git clone https://github.com/KyleRicardo/MentoHUST-OpenWrt-ipk.git package/mentohust-custom
-git clone https://github.com/BoringCat/luci-app-mentohust.git package/luci-app-mentohust-custom
+git clone https://github.com/BoringCat/luci-app-mentohust.git package/luci-app-mentohust
 
 wget https://github.com/vernesong/OpenClash/archive/master.tar.gz
 tar -zxvf master.tar.gz
 cp -r OpenClash-master/luci-app-openclash package
 
-git clone -b lede https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns-custom
+git clone -b lede https://github.com/pymumu/luci-app-smartdns.git package/luci-app-smartdns
 
 vim feeds.conf.default
 # src-git helloworld https://github.com/fw876/helloworld
