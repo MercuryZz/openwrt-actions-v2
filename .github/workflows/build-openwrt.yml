@@ -63,6 +63,7 @@ jobs:
         cd openwrt && make defconfig
         
     - name: First download package
+      working-directory: ./openwrt
       run: |
         make download -j$(nproc)
         find dl -size -1024c -exec ls -l {} \;
@@ -116,6 +117,7 @@ jobs:
         cd openwrt && make defconfig
         
     - name: Second download package
+      working-directory: ./openwrt
       run: |
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
