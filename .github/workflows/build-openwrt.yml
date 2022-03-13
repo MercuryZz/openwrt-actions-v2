@@ -1,7 +1,8 @@
 name: Build Openwrt
 
 on:
-  reposity_dispatch:
+  release:
+    types: [published]
   
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
