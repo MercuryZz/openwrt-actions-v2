@@ -1,0 +1,171 @@
+name: complie
+
+on:
+  reposity_dispatch:
+  
+env:
+  REPO_URL: https://github.com/coolsnowwolf/lede
+  REPO_BRANCH: master
+  FEEDS_CONF: feeds.conf.default
+  CONFIG_FILE: .config
+  FRONT_FEEDS_SH: front_feeds.sh
+  AFTER_FEEDS_SH: after_feeds.sh
+  ARCH_CONFIG_FILE: arch.config
+  UPLOAD_PACKAGES: true
+  UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+  
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 600
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@master
+      
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-2004)
+        sudo -E apt-get -qq install time
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
+      
+    - name: Clone source code
+      working-directory: /workdir
+      run: |
+        df -hT $PWD
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+        cd openwrt
+        useVersionInfo=$(git show -s --date=short --format="Author: %an<br/>date: %cd<br/>commit: %s<br/>commit hash: %H")
+        echo "useVersionInfo=$useVersionInfo" >> $GITHUB_ENV
+        echo "DATE=$(date "+%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
+        
+    - name: First update feeds
+      run: cd openwrt && ./scripts/feeds update -a
+
+    - name: First install feeds
+      run: cd openwrt && ./scripts/feeds install -a
+        
+    - name: Load configuration modify arch only
+      run: |
+        [ -e $ARCH_CONFIG_FILE ] && mv $ARCH_CONFIG_FILE openwrt/.config
+        
+    - name: First download package
+      id: first_package
+      run: |
+        cd openwrt
+        make defconfig
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+    
+    - name: First compile the firmware
+      id: first_compile
+      run: |
+        cd openwrt
+        echo -e "1 thread compile at first"
+        make -j1 V=s
+        echo "::set-output name=status::success"
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        
+    - name: Clean temporary file
+      id: delete
+      run: |
+        cd openwrt
+        rm -rf tmp && rm -f .config
+    
+    - name: Load custom feeds
+      run: |
+        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
+        chmod +x $FRONT_FEEDS_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$FRONT_FEEDS_SH
+        
+    - name: Second update feeds
+      run: cd openwrt && ./scripts/feeds update -a
+
+    - name: Second install feeds
+      run: cd openwrt && ./scripts/feeds install -a
+      
+    - name: Load custom configuration
+      run: |
+        [ -e files ] && mv files openwrt/files
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+        chmod +x $AFTER_FEEDS_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/$AFTER_FEEDS_SH
+        
+    - name: Second download package
+      id: second_package
+      run: |
+        cd openwrt
+        make defconfig
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+        
+    - name: Second compile the firmware
+      id: second_compile
+      run: |
+        cd openwrt
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+        echo "::set-output name=status::success"
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        
+    - name: Check space usage
+      if: (!cancelled())
+      run: df -hT
+        
+    - name: Organize files
+      id: second_organize
+      if: env.UPLOAD_PACKAGES == 'true' && !cancelled()
+      run: |
+        mkdir bin_packages && cd openwrt/bin/targets/*/* 
+        mv packages openwrt/bin/packages/bin_packages
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "::set-output name=status::success"
+      
+    - name: Upload packages directory
+      uses: actions/upload-artifact@main
+      if: steps.compile.outputs.status == 'success' && !cancelled() && env.UPLOAD_PACKAGES == 'true'
+      with:
+        name: openwrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: openwrt/bin/packages
+        
+    - name: Upload firmware directory
+      uses: actions/upload-artifact@main
+      if: steps.compile.outputs.status == 'success' && !cancelled() && env.UPLOAD_FIRMWARE == 'true'
+      with:
+        name: openwrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+        
+    - name: Create release
+      id: release
+      uses: ncipollo/release-action@v1
+      with:
+        name: R${{ env.DATE }} for ${{ env.PRODUCT_NAME }}
+        allowUpdates: true
+        tag: ${{ env.FILE_NAME }}
+        commit: master
+        token: ${{ secrets.RELEASES_TOKEN }}
+        body: |
+          默认IP： 192.168.123.1 默认密码： password
+          基于LEDE
+          ${{ env.useVersionInfo }}
+        artifacts: ${{ env.FIRMWARE }}/*
