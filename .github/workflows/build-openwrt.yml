@@ -1,4 +1,4 @@
-name: complie
+name: Build Openwrt
 
 on:
   reposity_dispatch:
