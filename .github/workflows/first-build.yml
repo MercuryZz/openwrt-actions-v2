@@ -49,7 +49,7 @@ jobs:
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
         
-    - name: First update & install feeds
+    - name: Update & install feeds
       working-directory: ./openwrt
       run: |
         ./scripts/feeds update -a
@@ -62,15 +62,15 @@ jobs:
         [ -e $ARCH_CONFIG_FILE ] && mv $ARCH_CONFIG_FILE openwrt/.config
         cd openwrt && make defconfig
         
-    - name: First download package
+    - name: Download package
       working-directory: ./openwrt
       run: |
         make download -j$(nproc)
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
     
-    - name: First compile the firmware
-      id: first_complie
+    - name: Compile the firmware
+      id: complie
       working-directory: ./openwrt
       run: |
         echo -e "1 thread compile at first"
@@ -89,7 +89,7 @@ jobs:
       
     - name: Upload bin directory
       uses: actions/upload-artifact@main
-      if: steps.second_compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: openwrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: openwrt/bin
