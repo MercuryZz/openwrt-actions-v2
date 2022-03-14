@@ -52,6 +52,7 @@ jobs:
         
     - name: Clean temporary file
       run: |
+        cd /workdir
         tar -zxvf lede-origin.tar.gz
         cd lede && rm -rf tmp && rm -f .config       
     
