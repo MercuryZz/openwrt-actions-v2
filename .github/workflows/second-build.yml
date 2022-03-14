@@ -1,0 +1,133 @@
+ 
+name: Build Openwrt
+
+on:
+  repository_dispatch:
+  workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'Twice Complie'
+        required: true
+        default: 'true'
+  
+env:
+  FRONT_FEEDS_SH: front_feeds.sh
+  AFTER_FEEDS_SH: after_feeds.sh
+  UPLOAD_BIN_DIR: true
+  UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    timeout-minutes: 600
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@master
+      
+    - name: Initialization environment
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo -E apt-get -qq update
+        sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-2004)
+        sudo -E apt-get -qq install time
+        sudo -E apt-get -qq autoremove --purge
+        sudo -E apt-get -qq clean
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
+      
+    - name: Download first environment
+      working-directory: /workdir
+      run: |
+        df -hT $PWD
+        wget http://qiniu.cetacean.top/lede.tar.gz
+        ln -sf /workdir/lede $GITHUB_WORKSPACE/lede        
+        
+    - name: Clean temporary file
+      run: |
+        cd lede && rm -rf tmp && rm -f .config       
+    
+    - name: Load custom feeds
+      env: 
+        FEEDS_CONF: 'feeds.conf.default'
+      run: |
+        [ -e $FEEDS_CONF ] && mv $FEEDS_CONF lede/feeds.conf.default
+        chmod +x $FRONT_FEEDS_SH
+        cd lede
+        $GITHUB_WORKSPACE/$FRONT_FEEDS_SH
+        
+    - name: Second update & install feeds
+      working-directory: ./lede
+      run: 
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+      
+    - name: Load custom configuration
+      env: 
+        CONFIG_FILE: '.config'
+      run: |
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE lede/.config
+        chmod +x $AFTER_FEEDS_SH
+        $GITHUB_WORKSPACE/$AFTER_FEEDS_SH
+        cd lede && make defconfig
+        
+    - name: Second download package
+      working-directory: ./lede
+      run: |
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+        
+    - name: Second compile the firmware
+      id: compile
+      working-directory: ./lede
+      run: |
+        echo -e "$(nproc) thread compile"
+        make -j$(nproc) || make -j1 || make -j1 V=s
+        echo "::set-output name=status::success"
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        
+    - name: Check space usage
+      if: (!cancelled())
+      run: df -hT
+      
+    - name: Upload bin directory
+      uses: actions/upload-artifact@main
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      with:
+        name: openwrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: lede/bin
+        
+    - name: Organize files
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      run: |
+        cd lede/bin/targets/*/*
+        rm -rf packages
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "::set-output name=status::success"
+        
+    - name: Upload firmware directory
+      uses: actions/upload-artifact@main
+      if: steps.organize.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true'
+      with:
+        name: openwrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+        
+    - name: Upload firmware to release
+      uses: svenstaro/upload-release-action@v2
+      if: env.UPLOAD_RELEASES == 'true' && !cancelled()
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ${{ env.FIRMWARE }}/*
+        file_glob: true
+        tag: AutoUpdate
+        overwrite: true
