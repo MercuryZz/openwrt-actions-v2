@@ -36,8 +36,7 @@ jobs:
         cd /workdir
         df -hT $PWD
         wget http://216.24.252.229:8888/api/public/dl/PrOMfEvy
-        cd PrOMfEvy
-        ls
+        mv PrOMfEvy lede-origin.tar.gz
         ln -sf /workdir/lede $GITHUB_WORKSPACE/lede
         
     - name: Clean temporary file
