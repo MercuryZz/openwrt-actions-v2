@@ -77,11 +77,11 @@ jobs:
         CONFIG_FILE: '.config'
       run: |
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE lede/.config
-        cd lede && make defconfig
         
     - name: Second download package
-      working-directory: ./lede
       run: |
+        cd lede
+        make defconfig
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
