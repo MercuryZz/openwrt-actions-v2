@@ -1,5 +1,5 @@
  
-name: Build Openwrt
+name: Second Build
 
 on:
   repository_dispatch:
