@@ -89,7 +89,7 @@ jobs:
       
     - name: Upload bin directory
       uses: actions/upload-artifact@main
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      if: steps.complie.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: openwrt_packages${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: openwrt/bin
