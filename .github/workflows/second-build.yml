@@ -35,7 +35,7 @@ jobs:
         sudo chown $USER:$GROUPS /workdir  
         cd /workdir
         df -hT $PWD
-        wget http://216.24.252.229:8888/api/raw/data/lede-origin.tar.gz?auth=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjp7ImlkIjoxLCJsb2NhbGUiOiJlbiIsInZpZXdNb2RlIjoibGlzdCIsInNpbmdsZUNsaWNrIjpmYWxzZSwicGVybSI6eyJhZG1pbiI6dHJ1ZSwiZXhlY3V0ZSI6dHJ1ZSwiY3JlYXRlIjp0cnVlLCJyZW5hbWUiOnRydWUsIm1vZGlmeSI6dHJ1ZSwiZGVsZXRlIjp0cnVlLCJzaGFyZSI6dHJ1ZSwiZG93bmxvYWQiOnRydWV9LCJjb21tYW5kcyI6W10sImxvY2tQYXNzd29yZCI6ZmFsc2UsImhpZGVEb3RmaWxlcyI6ZmFsc2UsImRhdGVGb3JtYXQiOmZhbHNlfSwiZXhwIjoxNjQ3Mjk4MDkyLCJpYXQiOjE2NDcyOTA4OTIsImlzcyI6IkZpbGUgQnJvd3NlciJ9.DokiBN_CJhAjBmcFFPqtC1gED72fjsl4XP2K780M0EY&
+        wget http://216.24.252.229:8888/api/public/dl/PrOMfEvy
         ln -sf /workdir/lede $GITHUB_WORKSPACE/lede
         
     - name: Initialization environment
