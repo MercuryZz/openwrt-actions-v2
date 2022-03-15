@@ -28,9 +28,7 @@ jobs:
 
     steps:
       - name: Checkoout
-        uses: actions/checkout@v2
-        with:
-          ref: master
+        uses: actions/checkout@main
       
       - name: Initialization environment
         env: |
