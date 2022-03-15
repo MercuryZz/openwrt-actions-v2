@@ -82,7 +82,6 @@ jobs:
         
     - name: Upload All directory
       uses: actions/upload-artifact@main
-      if: steps.package.outputs.status == 'success'
       with:
         name: openwrt_environment
         path: openwrt
