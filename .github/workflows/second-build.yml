@@ -36,7 +36,7 @@ jobs:
         cd /workdir
         df -hT $PWD
         wget http://216.24.252.229:8888/api/public/dl/zmGyjO6i
-        mv itoaYntH lede-origin.zip
+        mv zmGyjO6i lede-origin.zip
         ln -sf /workdir/lede $GITHUB_WORKSPACE/lede
         
     - name: Clean temporary file
