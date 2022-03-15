@@ -80,8 +80,12 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
         
+    - name: Tar
+      run: |
+        tar -zcvf openwrt.tar.gz openwrt
+        
     - name: Upload All directory
       uses: actions/upload-artifact@main
       with:
         name: openwrt_environment
-        path: openwrt
+        path: openwrt.tar.gz
