@@ -64,8 +64,8 @@ jobs:
         working-directory: /workdir
         run: |
           cd openwrt
-          ./script/feeds update -a
-          ./script/feeds install -a
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
           
       - name: Load custom config
         run: |
