@@ -872,6 +872,7 @@ jobs:
           df -h
           
       - name: Compile firmware
+        working-dircetory: ./openwrt
         run: |
           make -j$(nproc) || make -j1 V=s
           echo "======================="
