@@ -875,13 +875,7 @@ jobs:
         working-directory: ./openwrt
         run: |
           make -j$(nproc) || make -j1 V=s
-          echo "======================="
-          echo "Space usage:"
-          echo "======================="
-          df -h
-          echo "======================="
-          du -h ./ --max-depth=1
-          du -h /mnt/openwrt/ --max-depth=1 || true
+          echo "::set-output name=status::success"
          
       - name: Prepare artifact
         working-directory: ./openwrt
